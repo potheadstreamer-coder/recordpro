@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hero interaction
     const recordBtn = document.querySelector('.record-btn');
+    const screenshotBtn = document.querySelector('.screenshot-btn');
     const timeDisplay = document.querySelector('.time');
     const preview = document.getElementById('preview');
     let isRecording = false;
@@ -32,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     recordBtn.style.borderRadius = '8px';
                     recordBtn.style.transform = 'scale(0.8)';
+                    if (screenshotBtn) screenshotBtn.style.display = 'flex';
                     startTimer();
 
                     // Handle stream stop (user clicks "Stop Sharing" in browser UI)
@@ -48,6 +50,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (screenshotBtn) {
+        screenshotBtn.addEventListener('click', () => {
+            if (!preview.srcObject) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = preview.videoWidth;
+            canvas.height = preview.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+
+            const link = document.createElement('a');
+            link.download = `screenshot-${new Date().toISOString().replace(/:/g, '-')}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+
     function stopRecording() {
         if (stream) {
             let tracks = stream.getTracks();
@@ -58,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isRecording = false;
         recordBtn.style.borderRadius = '50%';
         recordBtn.style.transform = 'scale(1)';
+        if (screenshotBtn) screenshotBtn.style.display = 'none';
         stopTimer();
     }
 
