@@ -12,24 +12,53 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hero interaction
     const recordBtn = document.querySelector('.record-btn');
     const timeDisplay = document.querySelector('.time');
+    const preview = document.getElementById('preview');
     let isRecording = false;
     let timerInterval;
     let seconds = 0;
+    let stream = null;
 
     if (recordBtn) {
-        recordBtn.addEventListener('click', () => {
-            isRecording = !isRecording;
+        recordBtn.addEventListener('click', async () => {
+            if (!isRecording) {
+                try {
+                    stream = await navigator.mediaDevices.getDisplayMedia({
+                        video: true,
+                        audio: false
+                    });
 
-            if (isRecording) {
-                recordBtn.style.borderRadius = '8px';
-                recordBtn.style.transform = 'scale(0.8)';
-                startTimer();
+                    preview.srcObject = stream;
+                    isRecording = true;
+
+                    recordBtn.style.borderRadius = '8px';
+                    recordBtn.style.transform = 'scale(0.8)';
+                    startTimer();
+
+                    // Handle stream stop (user clicks "Stop Sharing" in browser UI)
+                    stream.getVideoTracks()[0].onended = () => {
+                        stopRecording();
+                    };
+
+                } catch (err) {
+                    console.error("Error: " + err);
+                }
             } else {
-                recordBtn.style.borderRadius = '50%';
-                recordBtn.style.transform = 'scale(1)';
-                stopTimer();
+                stopRecording();
             }
         });
+    }
+
+    function stopRecording() {
+        if (stream) {
+            let tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+            preview.srcObject = null;
+            stream = null;
+        }
+        isRecording = false;
+        recordBtn.style.borderRadius = '50%';
+        recordBtn.style.transform = 'scale(1)';
+        stopTimer();
     }
 
     function startTimer() {

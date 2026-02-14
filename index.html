@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <nav class="navbar glass">
         <div class="logo">RecordPro</div>
@@ -21,14 +23,17 @@
     <header class="hero">
         <div class="hero-content">
             <h1 class="fade-in">Capture Perfection.</h1>
-            <p class="subtitle fade-in-delay">Professional screen recording for everyone. 4K quality, AI-enhanced, zero lag.</p>
+            <p class="subtitle fade-in-delay">Professional screen recording for everyone. 4K quality, AI-enhanced, zero
+                lag.</p>
             <div class="cta-group fade-in-delay-2">
                 <a href="#download-chrome" class="btn-primary">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/e/e1/Google_Chrome_icon_%28February_2022%29.svg" alt="Chrome" width="20">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/e/e1/Google_Chrome_icon_%28February_2022%29.svg"
+                        alt="Chrome" width="20">
                     Add to Chrome
                 </a>
                 <a href="#download-windows" class="btn-secondary">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c9/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg" alt="Windows" width="20"> <!-- Placeholder icon for Windows -->
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c9/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg"
+                        alt="Windows" width="20"> <!-- Placeholder icon for Windows -->
                     Download for Windows
                 </a>
             </div>
@@ -42,8 +47,9 @@
                 </div>
                 <div class="window-content">
                     <div class="recording-preview">
+                        <video id="preview" autoplay muted playsinline></video>
                         <div class="recording-controls">
-                            <button class="record-btn"></button>
+                            <button class="record-btn" title="Start Live Demo"></button>
                             <span class="time">00:00:00</span>
                         </div>
                     </div>
@@ -77,12 +83,14 @@
             <div class="download-card glass">
                 <h3>Chrome Extension</h3>
                 <p>Perfect for quick tab recordings and browser demos.</p>
-                <button class="btn-primary">Add to Chrome</button>
+                <a href="https://github.com/potheadstreamer-coder/recordpro" target="_blank" class="btn-primary">View on
+                    GitHub</a>
             </div>
             <div class="download-card glass">
                 <h3>Windows Desktop</h3>
                 <p>Full power. Multi-window recording, system tray, global hotkeys.</p>
-                <button class="btn-primary">Download .exe</button>
+                <a href="https://github.com/potheadstreamer-coder/recordpro" target="_blank" class="btn-primary">View
+                    Source & Build</a>
             </div>
         </div>
     </section>
@@ -93,4 +101,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>
