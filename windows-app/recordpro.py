@@ -73,8 +73,91 @@ class ScreenRecorder(QObject):
         if hasattr(self, 'thread'):
             self.thread.join()
 
-# --- Main UI Class ---
-class RecordProApp(QMainWindow):
+# --- Snipping Widget ---
+class SnippingWidget(QWidget):
+    finished = pyqtSignal(object) # Emit with rect (x, y, w, h) or None
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setWindowState(Qt.WindowState.WindowFullScreen)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        self.start_point = None
+        self.end_point = None
+        self.is_snipping = False
+        
+        # Overlay color (semi-transparent black)
+        self.overlay_color = QColor(0, 0, 0, 100) 
+        self.pen_color = QColor(255, 255, 255)
+
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QPainter, QPen, QBrush
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Draw full screen overlay
+        painter.setBrush(QBrush(self.overlay_color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(self.rect())
+        
+        if self.start_point and self.end_point:
+            # clear the selected rectangle (make it transparent)
+            rect = self._get_rect()
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.setBrush(QBrush(Qt.GlobalColor.transparent))
+            painter.drawRect(rect)
+            
+            # Draw border
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            pen = QPen(self.pen_color, 2, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(rect)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.start_point = event.pos()
+            self.end_point = self.start_point
+            self.is_snipping = True
+            self.update()
+
+    def mouseMoveEvent(self, event):
+        if self.is_snipping:
+            self.end_point = event.pos()
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.is_snipping = False
+            rect = self._get_rect()
+            self.close()
+            # Convert to global coordinates not needed since widget is fullscreen
+            if rect.width() > 0 and rect.height() > 0:
+                 # Helper to get global screen geometry to offset if needed
+                 # For now assuming primary monitor full screen 0,0
+                self.finished.emit((rect.x(), rect.y(), rect.width(), rect.height()))
+            else:
+                self.finished.emit(None)
+
+    def _get_rect(self):
+        from PyQt6.QtCore import QRect
+        if not self.start_point or not self.end_point:
+            return QRect()
+            
+        x1 = min(self.start_point.x(), self.end_point.x())
+        y1 = min(self.start_point.y(), self.end_point.y())
+        x2 = max(self.start_point.x(), self.end_point.x())
+        y2 = max(self.start_point.y(), self.end_point.y())
+        return QRect(x1, y1, x2 - x1, y2 - y1)
+
+    def keyPressEvent(self, event):
+        # Cancel on Escape
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+            self.finished.emit(None)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("RecordPro")
@@ -233,16 +316,34 @@ class RecordProApp(QMainWindow):
 
     def take_screenshot(self):
         self.hide()
-        QTimer.singleShot(500, self._capture_screen) # Delay to let window hide
+        # Launch snipping tool
+        self.snipper = SnippingWidget()
+        self.snipper.finished.connect(self._on_snip_finished)
+        self.snipper.show()
 
-    def _capture_screen(self):
+    def _on_snip_finished(self, rect):
+        if rect:
+            # rect is (x, y, w, h)
+            self._capture_screen(rect)
+        else:
+            # Canceled
+            self.show()
+
+    def _capture_screen(self, rect):
         try:
             filename, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "screenshot.png", "Images (*.png *.jpg)")
             if filename:
                 with mss.mss() as sct:
-                    # Capture primary monitor for now
-                    monitor = sct.monitors[1] 
-                    sct_img = sct.grab(monitor)
+                    # We need to map the rect to the monitor coordinates.
+                    # Since SnippingWidget was fullscreen on (likely) primary monitor or all monitors?
+                    # PyQt fullscreen usually covers the screen where it opened.
+                    # For simplicity, we assume we want to capture the area defined by rect 
+                    # relative to the whole virtual screen if possible, or just primary.
+                    
+                    # mss can handle 'top', 'left', 'width', 'height'
+                    capture_chk = {'top': rect[1], 'left': rect[0], 'width': rect[2], 'height': rect[3]}
+                    
+                    sct_img = sct.grab(capture_chk)
                     mss.tools.to_png(sct_img.rgb, sct_img.size, output=filename)
                 
                 self.status_label.setText("Screenshot Saved")
