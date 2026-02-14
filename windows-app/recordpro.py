@@ -25,13 +25,11 @@ class ScreenRecorder(QObject):
         self.resolution = (1920, 1080)
         self.monitor_idx = 1 # Primary
 
-    def start_recording(self, filename, resolution_idx, monitor_idx=1):
+    def start_recording(self, filename, resolution_idx, monitor_idx=1, region=None):
         self.filename = filename 
         self.is_recording = True
         self.monitor_idx = monitor_idx
-        
-        # Determine specific resolution or full screen
-        # For simplicity, we'll just record the full screen of the monitor
+        self.region = region
         
         self.thread = threading.Thread(target=self._record)
         self.thread.start()
@@ -43,8 +41,17 @@ class ScreenRecorder(QObject):
                 self.monitor_idx = 1
             
             monitor = sct.monitors[self.monitor_idx]
-            width = monitor["width"]
-            height = monitor["height"]
+            
+            # Define capture area
+            if self.region:
+                # region is (x, y, w, h)
+                capture_area = {"top": self.region[1], "left": self.region[0], "width": self.region[2], "height": self.region[3]}
+                width = self.region[2]
+                height = self.region[3]
+            else:
+                capture_area = monitor
+                width = monitor["width"]
+                height = monitor["height"]
             
             # Codec setup
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -52,8 +59,11 @@ class ScreenRecorder(QObject):
             
             start_time = time.time()
             
+            # Ensure even dimensions for compatibility (some codecs dislike odd numbers)
+            # Not strictly enforcing here but good to know.
+            
             while self.is_recording:
-                img = sct.grab(monitor)
+                img = sct.grab(capture_area)
                 frame = np.array(img)
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
                 out.write(frame)
@@ -194,7 +204,7 @@ class SnippingWidget(QWidget):
         res_layout = QHBoxLayout()
         res_label = QLabel("Resolution:")
         self.res_combo = QComboBox()
-        self.res_combo.addItems(["1080p (FHD)", "720p (HD)", "4K (UHD)", "Screen Native"])
+        self.res_combo.addItems(["Screen Native", "Select Region", "1080p (FHD)", "720p (HD)", "4K (UHD)"])
         res_layout.addWidget(res_label)
         res_layout.addWidget(self.res_combo)
         settings_layout.addLayout(res_layout)
@@ -355,21 +365,40 @@ class SnippingWidget(QWidget):
 
     def toggle_recording(self):
         if not self.is_recording:
-            # Start
-            filename, _ = QFileDialog.getSaveFileName(self, "Save Video", "", "Video Files (*.mp4 *.avi *.mkv *.mov)")
-            if filename:
-                self.is_recording = True
-                self.record_btn.setText("Stop Recording")
-                self.record_btn.setStyleSheet("background-color: #ff3b30; color: white; border-radius: 20px; padding: 12px; font-weight: bold;")
-                self.status_label.setText("Recording...")
-                self.screenshot_btn.setEnabled(False) # Disable screenshot while recording for now to simplify
-                self.hide() # Hide window when recording
-                
-                # Start recording logic
-                self.recorder.start_recording(filename, 0) # 0 is dummy for resolution idx
+            # Check if "Select Region" is chosen
+            if self.res_combo.currentText() == "Select Region":
+                self.hide()
+                self.recorder_snipper = SnippingWidget()
+                self.recorder_snipper.finished.connect(self._on_record_snip_finished)
+                self.recorder_snipper.show()
+                return
+
+            # Start Normal Recording (Full Screen)
+            self._start_recording_process()
         else:
             # Stop
             self.stop_recording()
+
+    def _on_record_snip_finished(self, rect):
+        if rect:
+            self._start_recording_process(region=rect)
+        else:
+            self.show()
+
+    def _start_recording_process(self, region=None):
+        filename, _ = QFileDialog.getSaveFileName(self, "Save Video", "", "Video Files (*.mp4 *.avi *.mkv *.mov)")
+        if filename:
+            self.is_recording = True
+            self.record_btn.setText("Stop Recording")
+            self.record_btn.setStyleSheet("background-color: #ff3b30; color: white; border-radius: 20px; padding: 12px; font-weight: bold;")
+            self.status_label.setText("Recording...")
+            self.screenshot_btn.setEnabled(False) 
+            self.hide() 
+            
+            # Start recording logic
+            self.recorder.start_recording(filename, self.res_combo.currentIndex(), region=region) 
+        else:
+             self.show()
 
     def stop_recording(self):
         if self.is_recording:
