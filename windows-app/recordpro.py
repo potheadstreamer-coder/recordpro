@@ -130,13 +130,25 @@ class RecordProApp(QMainWindow):
         # Spacer
         layout.addStretch()
 
+        button_layout = QHBoxLayout()
+        
         # Record Button
         self.record_btn = QPushButton("Start Recording")
         self.record_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.record_btn.clicked.connect(self.toggle_recording)
         self.record_btn.setObjectName("recordBtn")
-        layout.addWidget(self.record_btn)
-
+        button_layout.addWidget(self.record_btn)
+        
+        # Screenshot Button
+        self.screenshot_btn = QPushButton("📷")
+        self.screenshot_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.screenshot_btn.clicked.connect(self.take_screenshot)
+        self.screenshot_btn.setObjectName("screenshotBtn")
+        self.screenshot_btn.setFixedWidth(50)
+        button_layout.addWidget(self.screenshot_btn)
+        
+        layout.addLayout(button_layout)
+        
         # Status
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -190,6 +202,18 @@ class RecordProApp(QMainWindow):
             QPushButton#recordBtn:checked {
                 background-color: #ff3b30;
             }
+            QPushButton#screenshotBtn {
+                background-color: #3a3a3c;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                padding: 12px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton#screenshotBtn:hover {
+                background-color: #48484a;
+            }
         """)
 
     def setup_tray(self):
@@ -207,6 +231,27 @@ class RecordProApp(QMainWindow):
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
 
+    def take_screenshot(self):
+        self.hide()
+        QTimer.singleShot(500, self._capture_screen) # Delay to let window hide
+
+    def _capture_screen(self):
+        try:
+            filename, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "screenshot.png", "Images (*.png *.jpg)")
+            if filename:
+                with mss.mss() as sct:
+                    # Capture primary monitor for now
+                    monitor = sct.monitors[1] 
+                    sct_img = sct.grab(monitor)
+                    mss.tools.to_png(sct_img.rgb, sct_img.size, output=filename)
+                
+                self.status_label.setText("Screenshot Saved")
+                QTimer.singleShot(2000, lambda: self.status_label.setText("Ready"))
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to take screenshot: {str(e)}")
+        finally:
+            self.show()
+
     def toggle_recording(self):
         if not self.is_recording:
             # Start
@@ -216,6 +261,7 @@ class RecordProApp(QMainWindow):
                 self.record_btn.setText("Stop Recording")
                 self.record_btn.setStyleSheet("background-color: #ff3b30; color: white; border-radius: 20px; padding: 12px; font-weight: bold;")
                 self.status_label.setText("Recording...")
+                self.screenshot_btn.setEnabled(False) # Disable screenshot while recording for now to simplify
                 self.hide() # Hide window when recording
                 
                 # Start recording logic
@@ -238,6 +284,7 @@ class RecordProApp(QMainWindow):
                 font-size: 16px;
                 font-weight: bold;
             """)
+            self.screenshot_btn.setEnabled(True)
             self.status_label.setText("Saved")
             self.show()
 

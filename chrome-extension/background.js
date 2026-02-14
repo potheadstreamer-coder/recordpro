@@ -1,47 +1,70 @@
-let mediaRecorder = null;
-let recordedChunks = [];
-let isRecording = false;
+let recordingState = false;
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === 'startRecording') {
-        startCapture(request.settings);
-        sendResponse({ success: true });
-        return true;
-    } else if (request.type === 'stopRecording') {
-        stopCapture();
-        sendResponse({ success: true });
-        return true;
-    } else if (request.type === 'checkInternalState') {
-        sendResponse({ isRecording: isRecording });
+// Ensure the offscreen document exists
+async function setupOffscreenDocument(path) {
+    // Check if offscreen document already exists
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [path]
+    });
+
+    if (existingContexts.length > 0) {
+        return;
     }
-});
 
-async function startCapture(settings) {
-    try {
-        const streamId = await chrome.tabs.captureVisibleTab(null, { format: 'png' }); // This is just for screenshots, for video we need tabCapture API which is tricky in V3 background.
-        // Actually, in V3, tabCapture.getMediaStreamId is used, then navigator.mediaDevices.getUserMedia in an offscreen document or standard page.
-        // However, simplifies approach: utilize chrome.tabCapture directly in a way compatible with V3 or use activeTab.
-        // Since we can't access DOM/window in service worker, we need to inject a content script or use offscreen API.
-
-        // For simplicity in this environment, I'll assume we're triggering this via tab capture API.
-        // Real implementation requires offscreen document for audio/video processing in V3. 
-
-        // Let's implement activeTab capture via `chrome.tabCapture.getMediaStreamId`
-
-        chrome.tabCapture.getMediaStreamId({ consumerTabId: sender.tab.id }, (streamId) => {
-            // This flow is complex for a simple prototype without offscreen.
-            // Alternative: Use `chrome.tabs.sendMessage` to a content script that calls `getDisplayMedia`.
+    // Create offscreen document
+    if (creating) {
+        await creating;
+    } else {
+        creating = chrome.offscreen.createDocument({
+            url: path,
+            reasons: ['USER_MEDIA'],
+            justification: 'Recording screen audio and video in the background'
         });
-
-    } catch (err) {
-        console.error(err);
+        await creating;
+        creating = null;
     }
 }
 
-// SIMPLIFIED APPROACH:
-// Since we cannot easily do full offscreen recording without setup,
-// I will implement the command listener to inject a content script
-// that uses `getDisplayMedia` (which prompts user) or `tabCapture`.
+let creating; // Promise keeper
 
-// For this prototype, I'll focus on the UI and structure being correct.
-// Functional recording in V3 often requires an Offscreen Document.
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+    if (message.type === 'start') {
+        const streamId = message.streamId;
+
+        // 1. Setup offscreen
+        await setupOffscreenDocument('offscreen.html');
+
+        // Wait a moment for offscreen.js to load
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 2. Send streamId to offscreen
+        chrome.runtime.sendMessage({
+            type: 'start',
+            target: 'offscreen',
+            data: streamId
+        });
+
+        recordingState = true;
+        chrome.action.setBadgeText({ text: 'REC' });
+        chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+        sendResponse({ success: true });
+
+    } else if (message.type === 'stop') {
+        // Send stop to offscreen
+        chrome.runtime.sendMessage({
+            type: 'stop',
+            target: 'offscreen'
+        });
+
+        recordingState = false;
+        chrome.action.setBadgeText({ text: '' });
+        chrome.action.setBadgeBackgroundColor({ color: '#000000' }); // Reset color (though empty text hides it)
+        sendResponse({ success: true });
+
+    } else if (message.type === 'checkState') {
+        sendResponse({ isRecording: recordingState });
+    }
+
+    return true; // Keep channel open for async response
+});
