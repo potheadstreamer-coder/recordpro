@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>RecordPro</title>
+    <style>
+        :root {
+            --primary: #0071e3;
+            --bg: #f5f5f7;
+            --text: #1d1d1f;
+        }
+
+        body {
+            width: 320px;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        h2 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 4px;
+            font-weight: 500;
+            color: #86868b;
+        }
+
+        select,
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 13px;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        select:focus {
+            border-color: var(--primary);
+        }
+
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn.stop {
+            background: #ff3b30;
+            display: none;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #86868b;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>RecordPro</h2>
+
+    <div class="control-group">
+        <label>Resolution</label>
+        <select id="quality">
+            <option value="480">480p</option>
+            <option value="720">720p</option>
+            <option value="1080" selected>1080p</option>
+            <option value="2160">4K (2160p)</option>
+        </select>
+    </div>
+
+    <div class="control-group">
+        <label>Format</label>
+        <select id="format">
+            <option value="webm">WebM (Chrome Default)</option>
+            <option value="mp4">MP4 (Converted)</option>
+        </select>
+    </div>
+
+    <div class="toggle-row">
+        <label>Microphone</label>
+        <input type="checkbox" id="mic">
+    </div>
+
+    <div class="toggle-row">
+        <label>System Audio</label>
+        <input type="checkbox" id="systemAudio" checked>
+    </div>
+
+    <button id="startBtn" class="btn">Start Recording</button>
+    <button id="stopBtn" class="btn stop">Stop Recording</button>
+
+    <div class="status" id="status">Ready to capture</div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
