@@ -8,9 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('.tab');
     const screenSelect = document.getElementById('screenSelect');
 
+    const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+    const recordingStatusText = document.getElementById('recordingStatusText');
+
     let currentMode = 'screen-cam'; // 'screen-cam', 'screen-only', 'cam-only'
     let timerInterval;
     let seconds = 0;
+    let isPaused = false;
 
     // --- 1. Tab Switching Logic ---
     tabs.forEach(tab => {
@@ -33,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 2. Check Existing Recording State ---
     chrome.runtime.sendMessage({ type: 'checkState' }, (response) => {
         if (response && response.isRecording) {
-            showRecordingState();
+            showRecordingState(response.isPaused, response.timeInSeconds || 0);
         }
     });
 
@@ -54,7 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
             chrome.runtime.sendMessage({
                 type: 'start',
                 streamId: streamId,
-                mode: currentMode
+                mode: currentMode,
+                micEnabled: document.getElementById('micToggle') ? document.getElementById('micToggle').checked : true
             }, (response) => {
                 if (response && response.success) {
                     showRecordingState();
@@ -77,6 +82,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 3000);
         });
     });
+
+    // --- 4.5 Pause/Resume Recording ---
+    if (pauseResumeBtn) {
+        pauseResumeBtn.addEventListener('click', () => {
+            const isPausing = pauseResumeBtn.innerText === 'Pause';
+            const action = isPausing ? 'pause' : 'resume';
+
+            chrome.runtime.sendMessage({ type: action }, (response) => {
+                if (response && response.success) {
+                    setPausedUI(isPausing);
+                }
+            });
+        });
+    }
 
     // --- 5. Screenshot ---
     const screenshotBtn = document.getElementById('screenshotBtn');
@@ -107,28 +126,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Helpers ---
-    function showRecordingState() {
+    function showRecordingState(paused = false, initialSeconds = 0) {
         mainPanel.style.display = 'none';
         recordingPanel.style.display = 'flex';
         recordingPanel.style.flexDirection = 'column'; // Ensure column layout
-        startTimer();
+        seconds = initialSeconds;
+        setPausedUI(paused);
+    }
+
+    function setPausedUI(paused) {
+        isPaused = paused;
+        if (paused) {
+            pauseResumeBtn.innerText = 'Resume';
+            pauseResumeBtn.style.background = '#27ae60';
+            pauseResumeBtn.style.color = 'white';
+            recordingStatusText.innerText = 'Recording Paused';
+            stopTimer();
+        } else {
+            pauseResumeBtn.innerText = 'Pause';
+            pauseResumeBtn.style.background = '#f2c94c';
+            pauseResumeBtn.style.color = '#333';
+            recordingStatusText.innerText = 'Recording in progress...';
+            startTimer();
+        }
     }
 
     function resetUI() {
         mainPanel.style.display = 'flex';
         recordingPanel.style.display = 'none';
         stopTimer();
+        seconds = 0;
+    }
+
+    function updateTimerDisplay() {
+        const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const secs = (seconds % 60).toString().padStart(2, '0');
+        document.querySelector('.timer').innerText = `${mins}:${secs}`;
     }
 
     function startTimer() {
-        seconds = 0;
-        document.querySelector('.timer').innerText = "00:00";
+        updateTimerDisplay(); // Initial display
         if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             seconds++;
-            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const secs = (seconds % 60).toString().padStart(2, '0');
-            document.querySelector('.timer').innerText = `${mins}:${secs}`;
+            updateTimerDisplay();
         }, 1000);
     }
 

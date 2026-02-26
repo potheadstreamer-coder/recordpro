@@ -28,43 +28,92 @@ async function setupOffscreenDocument(path) {
 
 let creating; // Promise keeper
 
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-    if (message.type === 'start') {
-        const streamId = message.streamId;
+let recordingStartTime = 0;
+let totalPausedTime = 0;
+let pauseStartTime = 0;
+let isPaused = false;
 
-        // 1. Setup offscreen
-        await setupOffscreenDocument('offscreen.html');
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    (async () => {
+        if (message.type === 'start') {
+            const streamId = message.streamId;
 
-        // Wait a moment for offscreen.js to load
-        await new Promise(resolve => setTimeout(resolve, 500));
+            // 1. Setup offscreen
+            await setupOffscreenDocument('offscreen.html');
 
-        // 2. Send streamId to offscreen
-        chrome.runtime.sendMessage({
-            type: 'start',
-            target: 'offscreen',
-            data: streamId
-        });
+            // Wait a moment for offscreen.js to load
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-        recordingState = true;
-        chrome.action.setBadgeText({ text: 'REC' });
-        chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
-        sendResponse({ success: true });
+            // 2. Send streamId and config to offscreen
+            chrome.runtime.sendMessage({
+                type: 'start',
+                target: 'offscreen',
+                data: {
+                    streamId: streamId,
+                    micEnabled: message.micEnabled
+                }
+            });
 
-    } else if (message.type === 'stop') {
-        // Send stop to offscreen
-        chrome.runtime.sendMessage({
-            type: 'stop',
-            target: 'offscreen'
-        });
+            recordingState = true;
+            isPaused = false;
+            recordingStartTime = Date.now();
+            totalPausedTime = 0;
+            pauseStartTime = 0;
 
-        recordingState = false;
-        chrome.action.setBadgeText({ text: '' });
-        chrome.action.setBadgeBackgroundColor({ color: '#000000' }); // Reset color (though empty text hides it)
-        sendResponse({ success: true });
+            chrome.action.setBadgeText({ text: 'REC' });
+            chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+            sendResponse({ success: true });
 
-    } else if (message.type === 'checkState') {
-        sendResponse({ isRecording: recordingState });
-    }
+        } else if (message.type === 'stop') {
+            // Send stop to offscreen
+            chrome.runtime.sendMessage({
+                type: 'stop',
+                target: 'offscreen'
+            });
 
-    return true; // Keep channel open for async response
+            recordingState = false;
+            isPaused = false;
+            chrome.action.setBadgeText({ text: '' });
+            chrome.action.setBadgeBackgroundColor({ color: '#000000' });
+            sendResponse({ success: true });
+
+        } else if (message.type === 'pause') {
+            chrome.runtime.sendMessage({
+                type: 'pause',
+                target: 'offscreen'
+            });
+            isPaused = true;
+            pauseStartTime = Date.now();
+            chrome.action.setBadgeText({ text: 'PAUS' });
+            chrome.action.setBadgeBackgroundColor({ color: '#f2c94c' });
+            sendResponse({ success: true });
+
+        } else if (message.type === 'resume') {
+            chrome.runtime.sendMessage({
+                type: 'resume',
+                target: 'offscreen'
+            });
+            isPaused = false;
+            if (pauseStartTime > 0) {
+                totalPausedTime += (Date.now() - pauseStartTime);
+                pauseStartTime = 0;
+            }
+            chrome.action.setBadgeText({ text: 'REC' });
+            chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+            sendResponse({ success: true });
+
+        } else if (message.type === 'checkState') {
+            let timeInSeconds = 0;
+            if (recordingState && recordingStartTime > 0) {
+                let now = isPaused ? pauseStartTime : Date.now();
+                timeInSeconds = Math.floor((now - recordingStartTime - totalPausedTime) / 1000);
+            }
+            sendResponse({
+                isRecording: recordingState,
+                isPaused: isPaused,
+                timeInSeconds: timeInSeconds
+            });
+        }
+    })();
+    return true; // MUST be synchronous return to keep channel open
 });
