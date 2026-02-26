@@ -168,6 +168,8 @@ class SnippingWidget(QWidget):
         if event.key() == Qt.Key.Key_Escape:
             self.close()
             self.finished.emit(None)
+# --- Main UI Class ---
+class RecordProApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("RecordPro")

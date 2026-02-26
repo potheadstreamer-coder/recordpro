@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // We will default to desktopCapture for all modes to ensure success, 
         // but passing the 'mode' to background could help later.
 
-        chrome.desktopCapture.chooseDesktopMedia(['screen', 'window'], (streamId) => {
+        chrome.desktopCapture.chooseDesktopMedia(['screen', 'window', 'tab', 'audio'], (streamId) => {
             if (!streamId) {
                 status.textContent = 'Selection cancelled';
                 return;
