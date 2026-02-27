@@ -9,50 +9,46 @@ chrome.runtime.onMessage.addListener(async (message) => {
         const micEnabled = message.data.micEnabled;
 
         try {
-            let desktopMedia;
-            let capturedAudio = false;
+            // CRITICAL FIX: To prevent "AbortError", we must never request audio and video together 
+            // if we aren't 100% sure the user granted system audio. If it fails, the streamId is destroyed.
+            // Therefore, we ALWAYS request video FIRST, entirely on its own.
 
+            let desktopMedia;
             try {
-                // First try: The user might have checked "Share system audio". 
-                // We MUST request audio: true here if they did, otherwise it fails.
                 desktopMedia = await navigator.mediaDevices.getUserMedia({
+                    audio: false,  // Absolutely NO audio here
+                    video: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: streamId
+                        }
+                    }
+                });
+            } catch (videoErr) {
+                console.error("Failed to capture video:", videoErr);
+                throw videoErr; // If video fails, we can't record.
+            }
+
+            const tracks = [...desktopMedia.getVideoTracks()];
+
+            // Now we try to get audio using the same streamId (Chrome sometimes allows this as a separate call)
+            // Or we just rely on microphone. Since the user asked for system audio by default, we try it.
+            try {
+                const systemAudioMedia = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         mandatory: {
                             chromeMediaSource: 'desktop',
                             chromeMediaSourceId: streamId
                         }
                     },
-                    video: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: streamId
-                        }
-                    }
+                    video: false // Absolutely NO video here
                 });
-                capturedAudio = true;
-            } catch (err) {
-                // Second try: User did NOT check "Share system audio".
-                // If we request audio now, it fails with AbortError/DOMException.
-                // So we request video ONLY.
-                console.warn("Could not capture system audio (probably unchecked). Capturing video only.", err);
-                desktopMedia = await navigator.mediaDevices.getUserMedia({
-                    audio: false,
-                    video: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: streamId
-                        }
-                    }
-                });
+                tracks.push(...systemAudioMedia.getAudioTracks());
+            } catch (audioErr) {
+                console.warn("User did not share system audio or it is unavailable.", audioErr.name);
             }
 
-            const tracks = [...desktopMedia.getVideoTracks()];
-            if (capturedAudio) {
-                tracks.push(...desktopMedia.getAudioTracks());
-            }
-
-            // 2. Optionally capture Microphone Audio separately (only if we didn't get system audio, or wanted to mix them - keeping it simple)
-            // If they granted system audio, we usually don't need mic too unless mixing. Let's add mic anyway if requested.
+            // Finally, add microphone if enabled
             if (micEnabled) {
                 try {
                     const micMedia = await navigator.mediaDevices.getUserMedia({
@@ -61,7 +57,7 @@ chrome.runtime.onMessage.addListener(async (message) => {
                     });
                     tracks.push(...micMedia.getAudioTracks());
                 } catch (micErr) {
-                    console.warn("Could not capture microphone audio.", micErr);
+                    console.warn("Could not capture microphone audio.", micErr.name);
                 }
             }
             const combinedMedia = new MediaStream(tracks);
