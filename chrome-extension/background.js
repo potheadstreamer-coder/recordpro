@@ -3,16 +3,18 @@ let recordingState = false;
 // Ensure the offscreen document exists
 async function setupOffscreenDocument(path) {
     if (await chrome.offscreen.hasDocument()) {
+        console.log("Offscreen document already exists via hasDocument.");
         return;
     }
 
     // Check if offscreen document already exists using contexts (backup)
     const existingContexts = await chrome.runtime.getContexts({
         contextTypes: ['OFFSCREEN_DOCUMENT'],
-        documentUrls: [path]
+        documentUrls: [chrome.runtime.getURL(path)]
     });
 
     if (existingContexts.length > 0) {
+        console.log("Offscreen document already exists via getContexts.");
         return;
     }
 
@@ -23,10 +25,15 @@ async function setupOffscreenDocument(path) {
             justification: 'Recording screen audio and video in the background'
         });
 
+        console.log("Offscreen document created successfully.");
         // Give it a moment to initialize its listeners
         await new Promise(resolve => setTimeout(resolve, 500));
+        console.log("Offscreen document initialization delay complete.");
     } catch (err) {
-        if (!err.message.includes('Only a single offscreen document may be created.')) {
+        if (err.message.includes('Only a single offscreen document may be created.')) {
+            console.warn("Attempted to create a second offscreen document, which is not allowed. This might indicate a race condition or logic error.", err);
+            return;
+        } else {
             console.error("Failed to create offscreen document:", err);
             throw err;
         }
