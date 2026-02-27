@@ -26,6 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 3. Start Recording ---
     function startRecording(sources) {
+        // Always append 'audio' to requested sources so the user has the option (and it defaults to ON for tabs)
+        if (!sources.includes('audio')) {
+            sources.push('audio');
+        }
+
         chrome.desktopCapture.chooseDesktopMedia(sources, (streamId) => {
             if (!streamId) {
                 status.textContent = 'Selection cancelled';
@@ -46,9 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (recordTabBtn) recordTabBtn.addEventListener('click', () => startRecording(['tab']));
-    if (recordWindowBtn) recordWindowBtn.addEventListener('click', () => startRecording(['window']));
-    if (recordScreenBtn) recordScreenBtn.addEventListener('click', () => startRecording(['screen']));
+    if (recordTabBtn) recordTabBtn.addEventListener('click', () => startRecording(['tab', 'audio']));
+    if (recordWindowBtn) recordWindowBtn.addEventListener('click', () => startRecording(['window', 'audio']));
+    if (recordScreenBtn) recordScreenBtn.addEventListener('click', () => startRecording(['screen', 'audio']));
 
     // --- 4. Stop Recording ---
     stopBtn.addEventListener('click', () => {
