@@ -20,59 +20,33 @@
         <div class="menu-icon">&#8942;</div>
     </header>
 
-    <main id="mainPanel">
-        <div class="tabs">
-            <div class="tab active" data-mode="screen-cam">Screen + Cam</div>
-            <div class="tab" data-mode="screen-only">Screen Only</div>
-            <div class="tab" data-mode="cam-only">Cam Only</div>
+    <main id="mainPanel" style="padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 14px; color: #555; margin-bottom: 10px; text-align: center;">Select what to capture:
         </div>
 
-        <div class="settings-group">
-            <!-- Screen Select -->
-            <div class="setting-item">
-                <div class="setting-label">
-                    <span>Full Screen</span>
-                </div>
-                <select id="screenSelect" disabled>
-                    <option>Full Screen</option>
-                    <option>Current Tab</option>
-                </select>
-            </div>
+        <button id="recordTabBtn" class="btn-primary" style="background: #0071e3; margin-bottom: 5px;">
+            📄 Record Chrome Tab
+        </button>
+        <button id="recordWindowBtn" class="btn-primary" style="background: #3a3a3c; margin-bottom: 5px;">
+            🪟 Record Window
+        </button>
+        <button id="recordScreenBtn" class="btn-primary" style="background: #3a3a3c; margin-bottom: 5px;">
+            💻 Record Entire Screen
+        </button>
 
-            <!-- Camera Toggle -->
-            <div class="setting-item">
-                <div class="setting-label">
-                    <span>Camera</span>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="cameraToggle" checked>
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <select id="cameraSource" class="sub-setting">
-                <option value="default">Default Camera</option>
-            </select>
+        <hr style="width: 100%; border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-            <!-- Mic Toggle -->
-            <div class="setting-item">
-                <div class="setting-label">
-                    <span>Microphone</span>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="micToggle" checked>
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <select id="micSource" class="sub-setting">
-                <option value="default">Default Microphone</option>
-            </select>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+            <span style="font-size: 14px; font-weight: 500;">🎙️ Record Microphone</span>
+            <label class="switch">
+                <input type="checkbox" id="micToggle" checked>
+                <span class="slider"></span>
+            </label>
         </div>
 
-        <div class="action-area">
-            <button id="startBtn" class="btn-primary">Start Recording</button>
-            <button id="screenshotBtn" class="btn-secondary" style="margin-top: 10px; width: 100%;">Take
-                Screenshot</button>
-        </div>
+        <button id="screenshotBtn" class="btn-secondary" style="width: 100%;">
+            📷 Take Screenshot
+        </button>
     </main>
 
     <!-- Recording State View (Hidden by default) -->

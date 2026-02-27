@@ -28,29 +28,16 @@ chrome.runtime.onMessage.addListener(async (message) => {
                 // We'll keep desktop video simple, and add mic separately.
             }
 
-            // 1. Capture Desktop/Tab Video (and potentially system/tab audio if permitted)
-            let desktopMedia;
-            try {
-                // Try capturing with system audio (if the user checked the "share audio" box)
-                desktopMedia = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: streamId
-                        }
-                    },
-                    video: constraints.video
-                });
-            } catch (sysAudioErr) {
-                console.warn("Could not capture system/tab audio. Capturing video only.", sysAudioErr);
-                // Fallback to video only
-                desktopMedia = await navigator.mediaDevices.getUserMedia({
-                    audio: false,
-                    video: constraints.video
-                });
-            }
+            // 1. Capture Desktop/Tab Video
+            // We ALWAYS request video only for the streamId to guarantee success.
+            // Requesting system audio when the user didn't grant it will fail and consume the streamId, 
+            // leading to "AbortError" on subsequent attempts.
+            let desktopMedia = await navigator.mediaDevices.getUserMedia({
+                audio: false,
+                video: constraints.video
+            });
 
-            const tracks = [...desktopMedia.getVideoTracks(), ...desktopMedia.getAudioTracks()];
+            const tracks = [...desktopMedia.getVideoTracks()];
 
             // 2. Optionally capture Microphone Audio separately
             if (micEnabled) {

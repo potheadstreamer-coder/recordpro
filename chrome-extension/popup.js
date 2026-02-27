@@ -1,38 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
     // UI Elements
-    const startBtn = document.getElementById('startBtn');
+    const recordTabBtn = document.getElementById('recordTabBtn');
+    const recordWindowBtn = document.getElementById('recordWindowBtn');
+    const recordScreenBtn = document.getElementById('recordScreenBtn');
+
     const stopBtn = document.getElementById('stopBtn');
     const status = document.getElementById('status');
     const mainPanel = document.getElementById('mainPanel');
     const recordingPanel = document.getElementById('recordingPanel');
-    const tabs = document.querySelectorAll('.tab');
-    const screenSelect = document.getElementById('screenSelect');
 
     const pauseResumeBtn = document.getElementById('pauseResumeBtn');
     const recordingStatusText = document.getElementById('recordingStatusText');
+    const micToggle = document.getElementById('micToggle');
 
-    let currentMode = 'screen-cam'; // 'screen-cam', 'screen-only', 'cam-only'
     let timerInterval;
     let seconds = 0;
     let isPaused = false;
-
-    // --- 1. Tab Switching Logic ---
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Remove active class from all
-            tabs.forEach(t => t.classList.remove('active'));
-            // Add to click
-            tab.classList.add('active');
-            currentMode = tab.dataset.mode;
-
-            // Adjust UI based on mode
-            if (currentMode === 'cam-only') {
-                screenSelect.disabled = true;
-            } else {
-                screenSelect.disabled = false;
-            }
-        });
-    });
 
     // --- 2. Check Existing Recording State ---
     chrome.runtime.sendMessage({ type: 'checkState' }, (response) => {
@@ -42,14 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- 3. Start Recording ---
-    startBtn.addEventListener('click', () => {
-        // If Camera Only, we might need different logic (userMedia only),
-        // but for now, let's stick to desktopCapture for simplicity 
-        // as "Camera Only" usually implies a PIP or full cam view which we don't have a viewer for yet.
-        // We will default to desktopCapture for all modes to ensure success, 
-        // but passing the 'mode' to background could help later.
-
-        chrome.desktopCapture.chooseDesktopMedia(['screen', 'window', 'tab', 'audio'], (streamId) => {
+    function startRecording(sources) {
+        chrome.desktopCapture.chooseDesktopMedia(sources, (streamId) => {
             if (!streamId) {
                 status.textContent = 'Selection cancelled';
                 return;
@@ -58,19 +35,20 @@ document.addEventListener('DOMContentLoaded', () => {
             chrome.runtime.sendMessage({
                 type: 'start',
                 streamId: streamId,
-                mode: currentMode,
-                micEnabled: document.getElementById('micToggle') ? document.getElementById('micToggle').checked : true
+                micEnabled: micToggle ? micToggle.checked : true
             }, (response) => {
                 if (response && response.success) {
                     showRecordingState();
-                    // Optional: Close popup functionality removed to show status
-                    // window.close(); 
                 } else {
                     status.textContent = 'Error starting recording';
                 }
             });
         });
-    });
+    }
+
+    if (recordTabBtn) recordTabBtn.addEventListener('click', () => startRecording(['tab']));
+    if (recordWindowBtn) recordWindowBtn.addEventListener('click', () => startRecording(['window']));
+    if (recordScreenBtn) recordScreenBtn.addEventListener('click', () => startRecording(['screen']));
 
     // --- 4. Stop Recording ---
     stopBtn.addEventListener('click', () => {
