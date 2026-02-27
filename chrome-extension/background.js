@@ -1,34 +1,36 @@
 let recordingState = false;
 
 // Ensure the offscreen document exists
-let creating; // Promise keeper
 async function setupOffscreenDocument(path) {
-    if (creating) {
-        await creating;
+    if (await chrome.offscreen.hasDocument()) {
         return;
     }
 
-    creating = (async () => {
-        // Check if offscreen document already exists
-        const existingContexts = await chrome.runtime.getContexts({
-            contextTypes: ['OFFSCREEN_DOCUMENT'],
-            documentUrls: [path]
-        });
+    // Check if offscreen document already exists using contexts (backup)
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [path]
+    });
 
-        if (existingContexts.length > 0) {
-            return;
-        }
+    if (existingContexts.length > 0) {
+        return;
+    }
 
-        // Create offscreen document
+    try {
         await chrome.offscreen.createDocument({
             url: path,
             reasons: ['USER_MEDIA'],
             justification: 'Recording screen audio and video in the background'
         });
-    })();
 
-    await creating;
-    creating = null;
+        // Give it a moment to initialize its listeners
+        await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (err) {
+        if (!err.message.includes('Only a single offscreen document may be created.')) {
+            console.error("Failed to create offscreen document:", err);
+            throw err;
+        }
+    }
 }
 
 let recordingStartTime = 0;
@@ -37,86 +39,99 @@ let pauseStartTime = 0;
 let isPaused = false;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    (async () => {
-        if (message.type === 'start') {
-            const streamId = message.streamId;
+    if (message.type === 'start') {
+        const streamId = message.streamId;
 
-            // 1. Setup offscreen
-            await setupOffscreenDocument('offscreen.html');
+        setupOffscreenDocument('offscreen.html').then(() => {
+            // Give it an extra moment just in case
+            setTimeout(() => {
+                chrome.runtime.sendMessage({
+                    type: 'start',
+                    target: 'offscreen',
+                    data: {
+                        streamId: streamId,
+                        micEnabled: message.micEnabled
+                    }
+                }, (response) => {
+                    // Check for runtime error to clear it
+                    if (chrome.runtime.lastError) console.warn(chrome.runtime.lastError);
+                });
 
-            // Wait a moment for offscreen.js to load
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // 2. Send streamId and config to offscreen
-            chrome.runtime.sendMessage({
-                type: 'start',
-                target: 'offscreen',
-                data: {
-                    streamId: streamId,
-                    micEnabled: message.micEnabled
-                }
-            });
-
-            recordingState = true;
-            isPaused = false;
-            recordingStartTime = Date.now();
-            totalPausedTime = 0;
-            pauseStartTime = 0;
-
-            chrome.action.setBadgeText({ text: 'REC' });
-            chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
-            sendResponse({ success: true });
-
-        } else if (message.type === 'stop') {
-            // Send stop to offscreen
-            chrome.runtime.sendMessage({
-                type: 'stop',
-                target: 'offscreen'
-            });
-
-            recordingState = false;
-            isPaused = false;
-            chrome.action.setBadgeText({ text: '' });
-            chrome.action.setBadgeBackgroundColor({ color: '#000000' });
-            sendResponse({ success: true });
-
-        } else if (message.type === 'pause') {
-            chrome.runtime.sendMessage({
-                type: 'pause',
-                target: 'offscreen'
-            });
-            isPaused = true;
-            pauseStartTime = Date.now();
-            chrome.action.setBadgeText({ text: 'PAUS' });
-            chrome.action.setBadgeBackgroundColor({ color: '#f2c94c' });
-            sendResponse({ success: true });
-
-        } else if (message.type === 'resume') {
-            chrome.runtime.sendMessage({
-                type: 'resume',
-                target: 'offscreen'
-            });
-            isPaused = false;
-            if (pauseStartTime > 0) {
-                totalPausedTime += (Date.now() - pauseStartTime);
+                recordingState = true;
+                isPaused = false;
+                recordingStartTime = Date.now();
+                totalPausedTime = 0;
                 pauseStartTime = 0;
-            }
-            chrome.action.setBadgeText({ text: 'REC' });
-            chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
-            sendResponse({ success: true });
 
-        } else if (message.type === 'checkState') {
-            let timeInSeconds = 0;
-            if (recordingState && recordingStartTime > 0) {
-                let now = isPaused ? pauseStartTime : Date.now();
-                timeInSeconds = Math.floor((now - recordingStartTime - totalPausedTime) / 1000);
-            }
-            sendResponse({
-                isRecording: recordingState,
-                isPaused: isPaused,
-                timeInSeconds: timeInSeconds
-            });
+                chrome.action.setBadgeText({ text: 'REC' });
+                chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+                sendResponse({ success: true });
+            }, 200);
+        }).catch(err => {
+            console.error("Setup failed:", err);
+            sendResponse({ success: false, error: err.message });
+        });
+        return true; // Keep channel open
+
+    } else if (message.type === 'stop') {
+        chrome.runtime.sendMessage({
+            type: 'stop',
+            target: 'offscreen'
+        }, () => {
+            if (chrome.runtime.lastError) console.warn(chrome.runtime.lastError);
+        });
+
+        recordingState = false;
+        isPaused = false;
+        chrome.action.setBadgeText({ text: '' });
+        chrome.action.setBadgeBackgroundColor({ color: '#000000' });
+
+        // Wait a slight bit for offscreen to process stop before returning
+        setTimeout(() => sendResponse({ success: true }), 100);
+        return true;
+
+    } else if (message.type === 'pause') {
+        chrome.runtime.sendMessage({
+            type: 'pause',
+            target: 'offscreen'
+        }, () => {
+            if (chrome.runtime.lastError) console.warn(chrome.runtime.lastError);
+        });
+        isPaused = true;
+        pauseStartTime = Date.now();
+        chrome.action.setBadgeText({ text: 'PAUS' });
+        chrome.action.setBadgeBackgroundColor({ color: '#f2c94c' });
+        sendResponse({ success: true });
+        return true;
+
+    } else if (message.type === 'resume') {
+        chrome.runtime.sendMessage({
+            type: 'resume',
+            target: 'offscreen'
+        }, () => {
+            if (chrome.runtime.lastError) console.warn(chrome.runtime.lastError);
+        });
+        isPaused = false;
+        if (pauseStartTime > 0) {
+            totalPausedTime += (Date.now() - pauseStartTime);
+            pauseStartTime = 0;
         }
-    })();
-    return true; // MUST be synchronous return to keep channel open
+        chrome.action.setBadgeText({ text: 'REC' });
+        chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+        sendResponse({ success: true });
+        return true;
+
+    } else if (message.type === 'checkState') {
+        let timeInSeconds = 0;
+        if (recordingState && recordingStartTime > 0) {
+            let now = isPaused ? pauseStartTime : Date.now();
+            timeInSeconds = Math.floor((now - recordingStartTime - totalPausedTime) / 1000);
+        }
+        sendResponse({
+            isRecording: recordingState,
+            isPaused: isPaused,
+            timeInSeconds: timeInSeconds
+        });
+        return true;
+    }
 });

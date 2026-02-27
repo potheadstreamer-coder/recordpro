@@ -9,37 +9,50 @@ chrome.runtime.onMessage.addListener(async (message) => {
         const micEnabled = message.data.micEnabled;
 
         try {
-            // Chrome Tab Capture requires audio and video to be requested simultaneously
-            // if we want both. Separate requests cause "AbortError" or "NotReadableError".
+            let desktopMedia;
+            let capturedAudio = false;
 
-            const constraints = {
-                video: {
-                    mandatory: {
-                        chromeMediaSource: 'desktop',
-                        chromeMediaSourceId: streamId
+            try {
+                // First try: The user might have checked "Share system audio". 
+                // We MUST request audio: true here if they did, otherwise it fails.
+                desktopMedia = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: streamId
+                        }
+                    },
+                    video: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: streamId
+                        }
                     }
-                }
-            };
-
-            if (micEnabled) {
-                // If we also want microphone, we request it in a separate stream later
-                // If they checked "Share audio" in the tab picker, it's included in system audio
-                // which we can request if we change chromeMediaSource to 'tab', but streamId is usually enough.
-                // We'll keep desktop video simple, and add mic separately.
+                });
+                capturedAudio = true;
+            } catch (err) {
+                // Second try: User did NOT check "Share system audio".
+                // If we request audio now, it fails with AbortError/DOMException.
+                // So we request video ONLY.
+                console.warn("Could not capture system audio (probably unchecked). Capturing video only.", err);
+                desktopMedia = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: streamId
+                        }
+                    }
+                });
             }
 
-            // 1. Capture Desktop/Tab Video
-            // We ALWAYS request video only for the streamId to guarantee success.
-            // Requesting system audio when the user didn't grant it will fail and consume the streamId, 
-            // leading to "AbortError" on subsequent attempts.
-            let desktopMedia = await navigator.mediaDevices.getUserMedia({
-                audio: false,
-                video: constraints.video
-            });
-
             const tracks = [...desktopMedia.getVideoTracks()];
+            if (capturedAudio) {
+                tracks.push(...desktopMedia.getAudioTracks());
+            }
 
-            // 2. Optionally capture Microphone Audio separately
+            // 2. Optionally capture Microphone Audio separately (only if we didn't get system audio, or wanted to mix them - keeping it simple)
+            // If they granted system audio, we usually don't need mic too unless mixing. Let's add mic anyway if requested.
             if (micEnabled) {
                 try {
                     const micMedia = await navigator.mediaDevices.getUserMedia({
@@ -48,11 +61,9 @@ chrome.runtime.onMessage.addListener(async (message) => {
                     });
                     tracks.push(...micMedia.getAudioTracks());
                 } catch (micErr) {
-                    console.warn("Could not capture microphone (maybe permissions?), proceeding without mic audio.", micErr);
+                    console.warn("Could not capture microphone audio.", micErr);
                 }
             }
-
-            // 3. Combine tracks
             const combinedMedia = new MediaStream(tracks);
 
             // Create recorder
