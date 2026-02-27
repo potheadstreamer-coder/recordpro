@@ -1,32 +1,35 @@
 let recordingState = false;
 
 // Ensure the offscreen document exists
+let creating; // Promise keeper
 async function setupOffscreenDocument(path) {
-    // Check if offscreen document already exists
-    const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT'],
-        documentUrls: [path]
-    });
-
-    if (existingContexts.length > 0) {
+    if (creating) {
+        await creating;
         return;
     }
 
-    // Create offscreen document
-    if (creating) {
-        await creating;
-    } else {
-        creating = chrome.offscreen.createDocument({
+    creating = (async () => {
+        // Check if offscreen document already exists
+        const existingContexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT'],
+            documentUrls: [path]
+        });
+
+        if (existingContexts.length > 0) {
+            return;
+        }
+
+        // Create offscreen document
+        await chrome.offscreen.createDocument({
             url: path,
             reasons: ['USER_MEDIA'],
             justification: 'Recording screen audio and video in the background'
         });
-        await creating;
-        creating = null;
-    }
-}
+    })();
 
-let creating; // Promise keeper
+    await creating;
+    creating = null;
+}
 
 let recordingStartTime = 0;
 let totalPausedTime = 0;
